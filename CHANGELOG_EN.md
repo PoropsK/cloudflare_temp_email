@@ -10,6 +10,7 @@
 
 ### Features
 
+- feat: |GitHub Actions| Add read-only Cloudflare credential checks and Node 24 builds of fixed v1.12.0 on an isolated preflight branch, without database migration or deployment
 - feat: |Webhook| Support random or specified email IDs in the test dialog, with request-body validation, mailbox ownership checks, existing UI languages and Chinese/English errors
 - feat: |Webhook| Support signed attachment URLs without S3, plain URL and Markdown link lists, with case-insensitive signatures bound to the inserted email and original download filenames; deny attachment downloads when Webhook is disabled (issue #1142)
 - feat: |Worker| Add `DISABLE_ADDRESS_UPDATED_AT` to disable individual and user-wide address activity keep-alive updates and built-in manual/scheduled inactive-address cleanup, reducing D1 writes

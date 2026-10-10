@@ -1,0 +1,137 @@
+name: cfmail Deployment Preflight
+
+"on":
+  push:
+    branches: [upgrade/preflight-v1.12.0]
+    paths: [.github/workflows/deployment_preflight.yaml]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.repository == 'PoropsK/cloudflare_temp_email'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout fixed v1.12.0 source
+        uses: actions/checkout@v6
+        with:
+          ref: 39db6bad4377dfb3d1d67d71bd589597dff3c352
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+          run_install: false
+
+      - name: Verify Cloudflare token with GET requests
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'JS'
+          const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const zone = '30e02b311478acda64ce97e79975253b';
+          const assert = (ok, label) => { if (!ok) throw new Error(label); };
+          assert(account === '7223b43ed305cbd20c72a2574caa54f4', 'Unexpected account setting');
+          assert(Boolean(token), 'CLOUDFLARE_API_TOKEN is missing');
+          async function get(path, label) {
+            const response = await fetch('https://api.cloudflare.com/client/v4' + path, {
+              method: 'GET', headers: { Authorization: 'Bearer ' + token },
+              signal: AbortSignal.timeout(30000)
+            });
+            const body = await response.json();
+            const codes = (body.errors || []).map(e => e.code).join(',');
+            assert(response.ok && body.success, label + ': HTTP ' + response.status + ' codes=' + codes);
+            return body.result;
+          }
+          try {
+            const verified = await get('/user/tokens/verify', 'Token verification');
+            assert(verified.status === 'active', 'Token is not active');
+            const [details, settings, pages, zoneInfo, routes, domains] = await Promise.all([
+              get('/accounts/' + account, 'Account read'),
+              get('/accounts/' + account + '/workers/scripts/mail-api/settings', 'Worker settings read'),
+              get('/accounts/' + account + '/pages/projects/cfmail', 'Pages project read'),
+              get('/zones/' + zone, 'Zone read'),
+              get('/zones/' + zone + '/workers/routes', 'Workers Routes read'),
+              get('/accounts/' + account + '/workers/domains', 'Custom domains read')
+            ]);
+            assert(details.id === account, 'Account mismatch');
+            assert(settings.bindings.some(b => b.type === 'd1' && b.name === 'DB' && b.id === '2b87d2bf-f7bc-4659-ab0a-befa37068ec9'), 'D1 binding mismatch');
+            assert(settings.bindings.some(b => b.type === 'kv_namespace' && b.name === 'KV' && b.namespace_id === 'ffeb228b02f54e569c429df826943310'), 'KV binding mismatch');
+            assert(pages.name === 'cfmail' && pages.production_branch === 'main' && pages.source === null, 'Pages target mismatch');
+            assert(zoneInfo.name === 'jpri.top' && zoneInfo.account.id === account, 'Zone mismatch');
+            assert(Array.isArray(routes), 'Route response mismatch');
+            assert(domains.some(d => d.service === 'mail-api' && d.hostname === 'mail-api.jpri.top'), 'Custom domain mismatch');
+            console.log('PREFLIGHT_CF=' + JSON.stringify({ token_active: true, account_read: true, worker_read: true, pages_read: true, zone_read: true, routes_read: true, custom_domain_read: true, bindings_match: true, write_permissions_exercised: false }));
+          } catch (error) {
+            console.error('Cloudflare read check failed: ' + error.message);
+            process.exit(1);
+          }
+          JS
+
+      - name: Validate and write reviewed build settings
+        env:
+          WRANGLER_TOML_CONTENT: ${{ secrets.BACKEND_TOML }}
+          FRONTEND_ENV_CONTENT: ${{ secrets.FRONTEND_ENV }}
+          FRONTEND_NAME: ${{ secrets.FRONTEND_NAME }}
+          FRONTEND_BRANCH: ${{ secrets.FRONTEND_BRANCH }}
+        run: |
+          python3 - <<'PY'
+          import os, tomllib
+          from pathlib import Path
+          raw = os.environ['WRANGLER_TOML_CONTENT']
+          config = tomllib.loads(raw)
+          assert config['name'] == 'mail-api'
+          assert config['account_id'] == '7223b43ed305cbd20c72a2574caa54f4'
+          assert config['keep_vars'] is True and 'vars' not in config
+          assert config['compatibility_date'] == '2025-09-01'
+          assert config['compatibility_flags'] == ['nodejs_compat']
+          assert config['routes'] == [{'pattern': 'mail-api.jpri.top', 'custom_domain': True}]
+          assert config['d1_databases'] == [{'binding': 'DB', 'database_name': 'cfmail', 'database_id': '2b87d2bf-f7bc-4659-ab0a-befa37068ec9'}]
+          assert config['kv_namespaces'] == [{'binding': 'KV', 'id': 'ffeb228b02f54e569c429df826943310'}]
+          assert os.environ['FRONTEND_NAME'] == 'cfmail'
+          assert os.environ['FRONTEND_BRANCH'] == 'main'
+          env_raw = os.environ['FRONTEND_ENV_CONTENT']
+          frontend = dict(line.split('=', 1) for line in env_raw.splitlines() if line.strip() and not line.startswith('#'))
+          assert frontend == {'VITE_API_BASE': 'https://mail-api.jpri.top', 'VITE_DEFAULT_LANG': 'zh', 'VITE_CF_WEB_ANALY_TOKEN': '', 'VITE_IS_TELEGRAM': 'false'}
+          Path('worker/wrangler.toml').write_text(raw, encoding='utf-8')
+          Path('frontend/.env.prod').write_text(env_raw, encoding='utf-8')
+          print('Reviewed build settings match expected production targets; values omitted.')
+          PY
+
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Package Worker without deployment
+        working-directory: worker
+        run: pnpm run build
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Verify source and built frontend
+        run: |
+          test "$(git rev-parse HEAD)" = '39db6bad4377dfb3d1d67d71bd589597dff3c352'
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const dir = 'frontend/dist/assets';
+          const assets = fs.readdirSync(dir).filter(n => n.endsWith('.js')).map(n => fs.readFileSync(dir + '/' + n, 'utf8')).join('\n');
+          if (!assets.includes('https://mail-api.jpri.top') || !assets.includes('v1.12.0') || assets.includes('http://127.0.0.1:8787')) throw new Error('Frontend target or version mismatch');
+          console.log('PREFLIGHT_BUILD=' + JSON.stringify({ node: process.version, pnpm: execFileSync('pnpm', ['--version'], {encoding:'utf8'}).trim(), wrangler: JSON.parse(fs.readFileSync('worker/node_modules/wrangler/package.json')).version, source_commit: '39db6bad4377dfb3d1d67d71bd589597dff3c352', worker_dry_run: true, frontend_build: true, frontend_version: 'v1.12.0', frontend_api_matches: true, deployed: false }));
+          JS
