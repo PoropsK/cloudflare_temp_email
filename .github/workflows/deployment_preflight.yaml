@@ -67,7 +67,7 @@ jobs:
             assert(details.id === account, 'Account mismatch');
             assert(settings.bindings.some(b => b.type === 'd1' && b.name === 'DB' && b.id === '2b87d2bf-f7bc-4659-ab0a-befa37068ec9'), 'D1 binding mismatch');
             assert(settings.bindings.some(b => b.type === 'kv_namespace' && b.name === 'KV' && b.namespace_id === 'ffeb228b02f54e569c429df826943310'), 'KV binding mismatch');
-            assert(pages.name === 'cfmail' && pages.production_branch === 'main' && pages.source === null, 'Pages target mismatch');
+            assert(pages.name === 'cfmail' && pages.production_branch === 'main' && pages.source == null, 'Pages target mismatch');
             assert(zoneInfo.name === 'jpri.top' && zoneInfo.account.id === account, 'Zone mismatch');
             assert(Array.isArray(routes), 'Route response mismatch');
             assert(domains.some(d => d.service === 'mail-api' && d.hostname === 'mail-api.jpri.top'), 'Custom domain mismatch');

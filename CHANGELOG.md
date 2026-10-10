@@ -10,6 +10,7 @@
 
 ### Features
 
+- fix: |GitHub Actions| 部署前查核兼容 Direct Upload Pages 省略 source 字段的 API 响应
 - feat: |GitHub Actions| 在独立查核分支增加固定 v1.12.0 的 Cloudflare 唯读凭证检查及 Node 24 前后端建置验证，不执行数据库迁移或发布
 - feat: |Webhook| 测试弹框支持随机邮件或指定邮件 ID，校验请求体及邮箱归属并适配现有前端语言及中英文错误提示
 - feat: |Webhook| 支持无需 S3 的多附件签名链接、纯 URL 与 Markdown 链接列表，签名兼容大小写，绑定本次入库邮件并保留下载文件名，关闭 Webhook 时禁止附件下载（issue #1142）

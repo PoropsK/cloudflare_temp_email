@@ -4,4 +4,6 @@
 
 流程使用六個部署 Secrets，唯讀驗證 Cloudflare Token、Account、Worker、Pages、Zone 及路由的存取，確認 DB／KV 與正式目標，再以 Node 24 執行 Worker dry-run 及前端 build。Token 與 Worker 變數值不輸出。
 
+Direct Upload Pages 的 API 可省略 source 欄位；查核接受未提供或 null，並同時核對專案及正式分支。
+
 成功只代表指定資源可讀、設定與建置通過；沒有測試寫入權限，沒有執行 D1 遷移或發布。正式升級仍需最新備份、schema 驗證、後端及前端依序發布與功能驗收。
