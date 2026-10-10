@@ -4,7 +4,7 @@
 
 ## 更新條件
 
-排程為每週一台北時間 08:17（00:17 UTC）。只有非 draft、非 prerelease 的 `vX.Y.Z` Release 可成為候選；先解析 tag 到固定 commit SHA。以 Pages 正式 deployment 的 commit hash 記錄已部署原始碼，並核對 Worker 版本、D1 版本及已核准基準。
+排程為每週一台北時間 08:17（00:17 UTC）。只有非 draft、非 prerelease 的 `vX.Y.Z` Release 可成為候選；先解析 tag 到固定 commit SHA。以 Pages 正式 deployment 的 commit hash 記錄已部署原始碼，並核對 Worker 版本、D1 版本及已核准基準。Worker 必須是已驗收的初始 version ID，或帶有對應 tag／SHA 註記的後續發布；未盤點的控制台修改及分流部署會停止。
 
 以下變更可自動通過：文件、CSS／樣式、指定副檔名的圖片／字型、Vue 元件僅 style 內容變更，以及 package／Worker 常數的單純版本號更新。候選 `.github/workflows/` 不會被執行或覆蓋本 fork 的控制流程。
 

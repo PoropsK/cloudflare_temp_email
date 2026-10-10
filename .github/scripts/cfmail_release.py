@@ -211,7 +211,16 @@ def bindings_fingerprint(settings):
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def live_state(policy):
+def verify_worker_source(policy, version, sha, tag):
+    if version.get("id") == policy["approved_worker_version_id"]:
+        require(sha == policy["approved_baseline_sha"], "BASELINE_WORKER_SOURCE_DISAGREES")
+    else:
+        annotations = version.get("annotations", {})
+        require(annotations.get("workers/message") == sha and
+                annotations.get("workers/tag") == tag, "UNREVIEWED_WORKER_VERSION")
+
+
+def live_state(policy, expected_worker_sha=None):
     config = policy["wrangler"]
     account, worker = config["account_id"], config["name"]
     require(os.environ.get("CLOUDFLARE_ACCOUNT_ID") == account, "ACCOUNT_SETTING_CHANGED")
@@ -256,11 +265,17 @@ def live_state(policy):
     sha = deployment["deployment_trigger"]["metadata"]["commit_hash"]
     require(SHA.fullmatch(sha) and deployment.get("environment") == "production" and
             deployment["latest_stage"].get("status") == "success", "PAGES_DEPLOYMENT_UNVERIFIED")
+    deployments = cf(policy, f"/accounts/{account}/workers/scripts/{worker}/deployments")
+    active = max(deployments["deployments"], key=lambda d: d["created_on"])["versions"]
+    require(len(active) == 1 and active[0].get("percentage") == 100, "SPLIT_WORKER_DEPLOYMENT")
+    version = cf(policy, f"/accounts/{account}/workers/scripts/{worker}/versions/{active[0]['version_id']}")
+    verify_worker_source(policy, version, expected_worker_sha or sha, api["version"])
     domains = cf(policy, f"/accounts/{account}/workers/domains")
     require(any(d.get("service") == worker and d.get("hostname") == "mail-api.jpri.top" for d in domains),
             "WORKER_DOMAIN_CHANGED")
     return {"deployed_sha": sha, "live_tag": api["version"],
             "db_version": db["current_db_version"],
+            "worker_version_id": version["id"],
             "pages_deployment_id": deployment["id"],
             "bindings_fingerprint": bindings_fingerprint(settings)}
 
@@ -313,6 +328,7 @@ def make_plan(policy):
     # Do not log or publish binding digests, auth headers or variable values.
     return {"decision": decision, "candidate_tag": tag, "candidate_sha": sha,
             "deployed_tag": deployed_tag, "deployed_sha": state["deployed_sha"],
+            "worker_version_id": state["worker_version_id"],
             "db_version": state["db_version"], "pages_deployment_id": state["pages_deployment_id"]}
 
 
@@ -347,7 +363,7 @@ def before_deploy(policy, plan, snapshot):
 
 
 def after_worker(policy, plan, snapshot):
-    state = live_state(policy)
+    state = live_state(policy, expected_worker_sha=plan["candidate_sha"])
     before = read_json(snapshot)
     require(state["live_tag"] == plan["candidate_tag"], "BACKEND_VERSION_NOT_UPDATED")
     require(state["deployed_sha"] == plan["deployed_sha"], "PAGES_CHANGED_DURING_BACKEND_DEPLOY")

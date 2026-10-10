@@ -81,7 +81,7 @@ class GateTests(unittest.TestCase):
         policy = {"approved_baseline_sha": old_sha}
         with patch.object(release, "check_other_deployments"), \
              patch.object(release, "live_state", return_value={"deployed_sha": old_sha,
-                 "live_tag": old_tag, "db_version": "v0.0.9", "pages_deployment_id": "page"}), \
+                 "live_tag": old_tag, "db_version": "v0.0.9", "pages_deployment_id": "page", "worker_version_id": "worker"}), \
              patch.object(release, "source_versions", side_effect=lambda _, sha: old_tag if sha == old_sha else new_tag), \
              patch.object(release, "latest_release", return_value=(new_tag, new_sha)), \
              patch.object(release, "validate_diff") as diff:
@@ -131,7 +131,7 @@ class GateTests(unittest.TestCase):
             with patch.object(release, "live_state", return_value={"live_tag": "v1.12.1",
                     "deployed_sha": "a" * 40, "bindings_fingerprint": "changed"}), \
                  self.assertRaises(release.Stop) as result:
-                release.after_worker({}, {"candidate_tag": "v1.12.1", "deployed_sha": "a" * 40}, snapshot)
+                release.after_worker({}, {"candidate_tag": "v1.12.1", "candidate_sha": "b" * 40, "deployed_sha": "a" * 40}, snapshot)
             self.assertEqual(result.exception.code, "VARIABLE_OR_BINDING_CHANGED_AFTER_DEPLOY")
 
     def test_symlink_change_stops(self):
@@ -140,6 +140,18 @@ class GateTests(unittest.TestCase):
                      {"truncated": False, "tree": [{"path": "README.md", "mode": "120000"}]}]
         with patch.object(release, "gh", side_effect=responses), self.assertRaises(release.Stop):
             release.validate_diff(policy, "a" * 40, "b" * 40, "v1.12.0", "v1.12.1")
+
+    def test_worker_control_panel_edits_and_wrong_source_annotations_stop(self):
+        policy = {"approved_worker_version_id": "initial", "approved_baseline_sha": "a" * 40}
+        release.verify_worker_source(policy, {"id": "initial"}, "a" * 40, "v1.12.0")
+        release.verify_worker_source(policy, {"id": "new", "annotations": {
+            "workers/message": "b" * 40, "workers/tag": "v1.12.1"}}, "b" * 40, "v1.12.1")
+        for version in ({"id": "dashboard-edit"}, {"id": "new", "annotations": {
+                "workers/message": "a" * 40, "workers/tag": "v1.12.1"}}):
+            with self.assertRaises(release.Stop):
+                release.verify_worker_source(policy, version, "b" * 40, "v1.12.1")
+        with self.assertRaises(release.Stop):
+            release.verify_worker_source(policy, {"id": "initial"}, "b" * 40, "v1.12.0")
 
 
 if __name__ == "__main__":

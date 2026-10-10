@@ -2,6 +2,7 @@
   "repository": "PoropsK/cloudflare_temp_email",
   "upstream": "dreamhunter2333/cloudflare_temp_email",
   "approved_baseline_sha": "39db6bad4377dfb3d1d67d71bd589597dff3c352",
+  "approved_worker_version_id": "d425642a-7950-4e59-aba2-bae3eee94ce0",
   "db_version": "v0.0.9",
   "api_url": "https://mail-api.jpri.top",
   "frontend_url": "https://mail.jpri.top",

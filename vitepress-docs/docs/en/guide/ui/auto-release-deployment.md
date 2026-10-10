@@ -4,7 +4,7 @@ This fork uses **cfmail Stable Release Update** for the existing `mail-api` Work
 
 ## Eligibility
 
-The weekly schedule is Monday 00:17 UTC (08:17 Taipei). Only published, non-prerelease `vX.Y.Z` releases qualify. Resolve the tag to an immutable commit SHA. The production Pages deployment's commit hash records the deployed source; verify its Worker version, D1 version and reviewed baseline.
+The weekly schedule is Monday 00:17 UTC (08:17 Taipei). Only published, non-prerelease `vX.Y.Z` releases qualify. Resolve the tag to an immutable commit SHA. The production Pages deployment's commit hash records the deployed source; verify its Worker version, D1 version and reviewed baseline. Worker must use the reviewed initial version ID or a later deployment with matching tag/SHA annotations; unreviewed Dashboard edits and split deployments stop.
 
 The allowlist covers documentation, CSS/styles, specified image/font extensions, Vue style-content-only edits and version-only changes in package files and Worker constants. Candidate upstream workflows are neither executed nor merged into this fork's controller.
 
