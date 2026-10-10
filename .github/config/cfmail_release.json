@@ -8,6 +8,10 @@
   "frontend_url": "https://mail.jpri.top",
   "pages_project": "cfmail",
   "pages_branch": "main",
+  "worker_variables": {
+    "ENABLE_AI_EMAIL_EXTRACT": "true",
+    "AI_EXTRACT_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast"
+  },
   "frontend_env": {
     "VITE_API_BASE": "https://mail-api.jpri.top",
     "VITE_DEFAULT_LANG": "zh",
@@ -23,6 +27,7 @@
     "keep_vars": true,
     "workers_dev": true,
     "preview_urls": true,
+    "ai": {"binding": "AI"},
     "routes": [{"pattern": "mail-api.jpri.top", "custom_domain": true}],
     "observability": {"enabled": false},
     "d1_databases": [{"binding": "DB", "database_name": "cfmail", "database_id": "2b87d2bf-f7bc-4659-ab0a-befa37068ec9"}],

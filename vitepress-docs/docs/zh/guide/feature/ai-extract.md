@@ -26,6 +26,14 @@ AI 邮件识别功能使用 Cloudflare Workers AI 自动分析收到的邮件内
 
 推荐使用 `@cf/meta/llama-3.1-8b-instruct-fast` 作为默认模型，它支持当前实现依赖的 JSON Mode，且 Cloudflare 说明 `-fast` 变体会保持可用。价格更低的 `@cf/meta/llama-3.1-8b-instruct-fp8-fast` 目前不在 JSON Mode 支持列表中，不建议用于本功能。Cloudflare 推荐的新模型 `@cf/zai-org/glm-4.7-flash` 适合多语言场景，但用于本功能前请先确认它在你的账号/区域支持结构化 JSON 输出。旧默认模型 `@cf/meta/llama-3.1-8b-instruct` 将于 2026-05-30 被 Cloudflare 弃用，不建议继续使用。
 
+## 此 fork 的生产配置与验证
+
+`mail-api` 使用 `AI` 绑定、文本 `ENABLE_AI_EMAIL_EXTRACT=true` 及 `AI_EXTRACT_MODEL=@cf/meta/llama-3.1-8b-instruct-fast`。关闭地址白名单后，启用时点之后收到的邮件可提取信息，适用于现有及新建邮箱；不会自动重新分析历史邮件。
+
+2026-10-10，此账号使用原 v1.12.0 提示词和 `json_schema` 请求完成中文／英文合成验证码、验证链接与无匹配内容四项实测。Cloudflare 模型目录和 JSON Mode 列表未完整显示这个 `-fast` 模型，直接调用仍成功；这只证明本次账号实测，不能保证未来可用。换模型时须验证返回的 `response` 为 JSON 字符串或对象；采用 `choices` 格式的模型不能仅更改变量就假设兼容。
+
+Workers AI 每日免费额度为账号合计 10,000 Neurons，台北 08:00 重置；这不是 10,000 封邮件。Free 超额会失败；Paid 超额可能收费。此设置不升级方案，也不建立应用层硬性预算。AI 调用失败时邮件已保存，当前代码不会再尝试正则提取；正则兜底仅适用于没有 AI 绑定。参见 [Cloudflare 定价](https://developers.cloudflare.com/workers-ai/platform/pricing/) 及本 fork 的[自动部署配置](../ui/auto-release-deployment.md)。
+
 ## 内容长度限制
 
 为避免 AI 模型 token 限制，邮件内容最大处理长度为 **4000 字符**。超过此长度的邮件内容将被截断后再进行 AI 分析。

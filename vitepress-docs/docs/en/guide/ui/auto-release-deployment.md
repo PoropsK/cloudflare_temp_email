@@ -12,6 +12,16 @@ Stop for DB/SQL/migration changes, authentication/email/API logic, template/scri
 
 ## Configuration and operation
 
+### Workers AI email extraction
+
+This deployment policy reviews the `AI` binding of type `ai`. Both `BACKEND_TOML` and the policy's `wrangler.ai` must contain `[ai] binding = "AI"`. `keep_vars=true` preserves variables; it does not replace the AI resource binding declaration.
+
+Use text variables `ENABLE_AI_EMAIL_EXTRACT=true` and `AI_EXTRACT_MODEL=@cf/meta/llama-3.1-8b-instruct-fast`. The controller verifies these against `worker_variables`. Cloudflare's default `project=<catalog>` marker is normalized; other additional fields, missing, duplicate or renamed AI bindings and changed model/flag values stop deployment. Unknown resources and encrypted bindings still stop. All variables and bindings, including the original JWT, remain covered by the before/after comparison.
+
+Update the live Worker, policy and `BACKEND_TOML` together. After testing JSON extraction, validate main with `check_only=true` and `validate_build=true`. A version created by a configuration update must retain the matching application SHA/tag annotations; the controller branch commit is not the application source. Adding AI only in the Dashboard is insufficient for future deployments.
+
+### Actions settings
+
 Reuse the six repository Secrets: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `BACKEND_TOML`, `FRONTEND_NAME`, `FRONTEND_BRANCH`, `FRONTEND_ENV`. Values must match policy. BACKEND_TOML has `keep_vars=true` and no vars, preserving Dashboard JWT/password values. Never commit tokens.
 
 Set the repository Variable `CFMAIL_AUTO_RELEASE_ENABLED=true` to allow deployment. Deployment also requires main, an eligible update, and a schedule or non-check-only manual invocation; push validation never deploys. Turning this variable off still permits inspection. Policy and the scheduled workflow must exist on main. Main retains the controller baseline; application candidates are checked out from fixed upstream SHAs instead of replacing main via gh repo sync.

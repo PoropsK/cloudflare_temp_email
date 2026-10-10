@@ -12,6 +12,16 @@ DB／SQL／遷移、認證／收信／API 邏輯、模板／script、相依套�
 
 ## 設定與執行
 
+### Workers AI 邮件提取
+
+本部署策略已审核 `AI`（类型 `ai`）绑定，`BACKEND_TOML` 和策略的 `wrangler.ai` 必须同时包含 `[ai] binding = "AI"`。`keep_vars=true` 只保留变量，不能替代 AI 资源绑定声明。
+
+Worker 变量使用文本 `ENABLE_AI_EMAIL_EXTRACT=true`、`AI_EXTRACT_MODEL=@cf/meta/llama-3.1-8b-instruct-fast`，控制程序按策略的 `worker_variables` 核对。Cloudflare 返回的系统默认标记 `project=<catalog>` 会规范化；其余额外参数以及 AI 绑定缺失、重复、改名或模型／开关变动均停止；未知资源和加密绑定仍停止。部署前后仍比对全部变量与绑定，包含原 JWT。
+
+配置更新应同时维护线上 Worker、策略与 `BACKEND_TOML`，完成 JSON 提取实测后以 main 的 `check_only=true`、`validate_build=true` 验证。配置更新生成的新版本须保留对应应用来源 SHA／tag 注记，不能把策略分支 commit 当成应用来源。不要只在 Dashboard 添加 AI 而遗漏后续部署配置。
+
+### Actions 设置
+
 沿用六個 repository Secrets：`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BACKEND_TOML`、`FRONTEND_NAME`、`FRONTEND_BRANCH`、`FRONTEND_ENV`。值必須符合控制檔；BACKEND_TOML 使用 `keep_vars=true` 且沒有 vars，以保留 Dashboard 的 JWT／密碼。不要把 Token 放入原始碼。
 
 repository Variable `CFMAIL_AUTO_RELEASE_ENABLED=true` 才允許正式發布。發布同時要求 workflow 在 `main`、有合格新版、且不是 push／check-only。此變數關閉時仍可查核，但不發布。控制政策與正式排程需放在 main；main 保存控制流程基準，候選應用程式從上游固定 SHA checkout，不用 gh repo sync 整包覆盖。

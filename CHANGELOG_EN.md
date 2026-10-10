@@ -24,6 +24,8 @@
 
 ### Bug Fixes
 
+- fix: |Actions| Verify and preserve the reviewed Workers AI binding, email extraction flag and model; missing, duplicate, renamed or unknown bindings still block deployment
+
 - fix: |Mailbox Auth| Fix stale mailbox credentials retaining API access, unauthorized Telegram unbinding, ineffective rebinding and credential storage in external sent mail; distinguish authentication errors to prompt for site and Admin login correctly; move E2E test endpoints out of production code
 - fix: |Frontend| Remove unsupported `data-onload` and `data-onerror` attributes from the AdSense script
 - fix: |Admin| Avoid briefly showing the Admin password dialog before access settings finish loading

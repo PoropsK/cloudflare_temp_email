@@ -26,6 +26,14 @@ Extraction results are automatically saved to the `metadata` field in the databa
 
 We recommend `@cf/meta/llama-3.1-8b-instruct-fast` as the default model because it supports the JSON Mode used by this feature, and Cloudflare says `-fast` variants will remain active. The cheaper `@cf/meta/llama-3.1-8b-instruct-fp8-fast` is not currently listed as a JSON Mode supported model, so it is not recommended for this feature. Cloudflare's newer recommended model `@cf/zai-org/glm-4.7-flash` is suitable for multilingual scenarios, but confirm structured JSON output support in your account/region before using it for this feature. The previous default model `@cf/meta/llama-3.1-8b-instruct` will be deprecated by Cloudflare on 2026-05-30 and is no longer recommended.
 
+## Production configuration and validation in this fork
+
+`mail-api` uses the `AI` binding, text `ENABLE_AI_EMAIL_EXTRACT=true` and `AI_EXTRACT_MODEL=@cf/meta/llama-3.1-8b-instruct-fast`. Disabling the address allowlist covers mail received after activation in existing and newly created mailboxes. Historical messages are not automatically reprocessed.
+
+On 2026-10-10, this account passed four synthetic cases using the unchanged v1.12.0 prompt and `json_schema`: Chinese/English verification codes, a verification link and no matching content. Cloudflare's model catalog and JSON Mode list did not fully display this `-fast` model, but direct inference succeeded. This verifies the account at that time, not future availability. When changing models, verify that `response` contains a JSON string or object; models returning `choices` cannot be assumed compatible through a variable change alone.
+
+Workers AI provides 10,000 free Neurons per account per day, resetting at 08:00 Taipei; this is not 10,000 emails. Free requests fail after the limit; Paid overages can incur charges. This setup does not upgrade the plan or impose an application-level spending cap. Mail is saved before inference; inference failures do not trigger a regex retry in the current code. Regex fallback applies only when the AI binding is absent. See [Cloudflare pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/) and this fork's [deployment policy](../ui/auto-release-deployment.md).
+
 ## Content Length Limit
 
 To avoid AI model token limits, the maximum email content length for processing is **4000 characters**. Email content exceeding this limit will be truncated before AI analysis.

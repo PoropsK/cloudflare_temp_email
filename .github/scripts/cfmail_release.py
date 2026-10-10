@@ -220,6 +220,23 @@ def verify_worker_source(policy, version, sha, tag):
                 annotations.get("workers/tag") == tag, "UNREVIEWED_WORKER_VERSION")
 
 
+def verify_ai_configuration(policy, bindings, variables):
+    config = policy["wrangler"].get("ai")
+    expected = [{"name": config["binding"], "type": "ai"}] if config else []
+    actual = []
+    for binding in bindings:
+        if binding.get("type") != "ai":
+            continue
+        normalized = dict(binding)
+        # Cloudflare adds this catalog marker to the native AI binding.
+        if normalized.get("project") == "<catalog>":
+            normalized.pop("project")
+        actual.append(normalized)
+    require(actual == expected, "AI_BINDING_CHANGED")
+    for name, value in policy.get("worker_variables", {}).items():
+        require(variables.get(name) == value, "AI_VARIABLE_CHANGED", {"name": name})
+
+
 def live_state(policy, expected_worker_sha=None):
     config = policy["wrangler"]
     account, worker = config["account_id"], config["name"]
@@ -235,7 +252,7 @@ def live_state(policy, expected_worker_sha=None):
             d1[0].get("id") == config["d1_databases"][0]["database_id"], "D1_BINDING_CHANGED")
     require(len(kv) == 1 and kv[0].get("name") == "KV" and
             kv[0].get("namespace_id") == config["kv_namespaces"][0]["id"], "KV_BINDING_CHANGED")
-    require(all(b.get("type") in {"d1", "kv_namespace", "plain_text", "json"} for b in bindings),
+    require(all(b.get("type") in {"d1", "kv_namespace", "plain_text", "json", "ai"} for b in bindings),
             "UNKNOWN_OR_ENCRYPTED_BINDING")
     variables = {}
     for b in bindings:
@@ -243,6 +260,7 @@ def live_state(policy, expected_worker_sha=None):
             variables[b["name"]] = b["text"]
         elif b["type"] == "json":
             variables[b["name"]] = json.loads(b["json"]) if isinstance(b["json"], str) else b["json"]
+    verify_ai_configuration(policy, bindings, variables)
     require(bool(variables.get("JWT_SECRET")), "JWT_NOT_READABLE")
     admins = string_list(variables.get("ADMIN_PASSWORDS"))
     require(bool(admins), "ADMIN_HEALTH_CHECK_NOT_AVAILABLE")

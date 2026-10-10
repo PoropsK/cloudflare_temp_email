@@ -108,7 +108,10 @@ class GateTests(unittest.TestCase):
             {"type": "d1", "name": "DB", "id": policy["wrangler"]["d1_databases"][0]["database_id"]},
             {"type": "kv_namespace", "name": "KV", "namespace_id": policy["wrangler"]["kv_namespaces"][0]["id"]},
             {"type": "plain_text", "name": "JWT_SECRET", "text": "fake"},
-            {"type": "json", "name": "ADMIN_PASSWORDS", "json": ["fake-admin"]}]}
+            {"type": "json", "name": "ADMIN_PASSWORDS", "json": ["fake-admin"]},
+            {"type": "ai", "name": "AI"}] + [
+                {"type": "plain_text", "name": name, "text": value}
+                for name, value in policy["worker_variables"].items()]}
         with patch.dict(release.os.environ, {"CLOUDFLARE_ACCOUNT_ID": policy["wrangler"]["account_id"]}), \
              patch.object(release, "cf", return_value=settings), \
              patch.object(release, "get", return_value={"current_db_version": "v0.0.8",
@@ -152,6 +155,61 @@ class GateTests(unittest.TestCase):
                 release.verify_worker_source(policy, version, "b" * 40, "v1.12.1")
         with self.assertRaises(release.Stop):
             release.verify_worker_source(policy, {"id": "initial"}, "b" * 40, "v1.12.0")
+
+    def test_reviewed_ai_binding_and_variables_are_required(self):
+        policy = release.read_json(release.POLICY)
+        binding = {"type": "ai", "name": "AI"}
+        variables = policy["worker_variables"]
+        release.verify_ai_configuration(policy, [binding], variables)
+        release.verify_ai_configuration(policy, [{**binding, "project": "<catalog>"}], variables)
+        for bindings in ([], [{**binding, "name": "OTHER_AI"}], [binding, binding],
+                         [{**binding, "gateway_id": "unreviewed"}],
+                         [{**binding, "project": "unreviewed"}]):
+            with self.subTest(bindings=bindings), self.assertRaises(release.Stop) as result:
+                release.verify_ai_configuration(policy, bindings, variables)
+            self.assertEqual(result.exception.code, "AI_BINDING_CHANGED")
+
+    def test_disabled_ai_and_model_drift_stop_without_logging_values(self):
+        policy = release.read_json(release.POLICY)
+        for name in policy["worker_variables"]:
+            for value in (None, "false", "unreviewed-model"):
+                changed = {**policy["worker_variables"], name: value}
+                with self.subTest(name=name, value=value), self.assertRaises(release.Stop) as result:
+                    release.verify_ai_configuration(policy, [{"type": "ai", "name": "AI"}], changed)
+                self.assertEqual(result.exception.code, "AI_VARIABLE_CHANGED")
+                self.assertEqual(result.exception.details, {"name": name})
+
+    def test_unreviewed_ai_and_encrypted_bindings_still_stop(self):
+        release.verify_ai_configuration({"wrangler": {}}, [], {})
+        with self.assertRaises(release.Stop):
+            release.verify_ai_configuration({"wrangler": {}}, [{"type": "ai", "name": "AI"}], {})
+        policy = release.read_json(release.POLICY)
+        settings = {"compatibility_date": "2025-09-01", "compatibility_flags": ["nodejs_compat"], "bindings": [
+            {"type": "d1", "name": "DB", "id": policy["wrangler"]["d1_databases"][0]["database_id"]},
+            {"type": "kv_namespace", "name": "KV", "namespace_id": policy["wrangler"]["kv_namespaces"][0]["id"]},
+            {"type": "secret_text", "name": "JWT_SECRET"}]}
+        with patch.dict(release.os.environ, {"CLOUDFLARE_ACCOUNT_ID": policy["wrangler"]["account_id"]}), \
+             patch.object(release, "cf", return_value=settings), self.assertRaises(release.Stop) as result:
+            release.live_state(policy)
+        self.assertEqual(result.exception.code, "UNKNOWN_OR_ENCRYPTED_BINDING")
+
+    def test_prepare_preserves_ai_and_rejects_backend_config_without_it(self):
+        policy = {**release.read_json(release.POLICY),
+                  "wrangler": {"name": "test-worker", "ai": {"binding": "AI"}}}
+        raw = 'name = "test-worker"\n[ai]\nbinding = "AI"\n'
+        environment = {"BACKEND_TOML": raw, "FRONTEND_NAME": policy["pages_project"],
+                       "FRONTEND_BRANCH": policy["pages_branch"], "FRONTEND_ENV":
+                       "\n".join(f"{k}={v}" for k, v in policy["frontend_env"].items())}
+        with tempfile.TemporaryDirectory() as folder, patch.dict(release.os.environ, environment):
+            candidate = Path(folder)
+            (candidate / "worker").mkdir()
+            (candidate / "frontend").mkdir()
+            release.prepare(policy, candidate)
+            self.assertEqual(release.tomllib.loads((candidate / "worker/wrangler.toml").read_text())["ai"], {"binding": "AI"})
+            release.os.environ["BACKEND_TOML"] = raw.replace('[ai]\nbinding = "AI"\n', '')
+            with self.assertRaises(release.Stop) as result:
+                release.prepare(policy, candidate)
+            self.assertEqual(result.exception.code, "BACKEND_CONFIG_CHANGED")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@
 
 ### Bug Fixes
 
+- fix: |Actions| 正式 Release 控制流程核对并保留已审核的 Workers AI 绑定、邮件提取开关与模型；缺失、重复、改名或未知绑定仍停止部署
+
 - fix: |邮箱鉴权| 修复旧邮箱凭证仍可访问 API、Telegram 越权解绑、重新绑定失效及外部发信保存凭证的问题，区分认证错误以准确提示站点及管理员登录，并将 E2E 测试接口移出生产代码
 - fix: |Frontend| 修复 AdSense 脚本包含不受支持的 `data-onload` 和 `data-onerror` 属性
 - fix: |Admin| 修复权限设置加载完成前短暂显示管理员密码输入框的问题
