@@ -10,6 +10,7 @@
 
 ### Features
 
+- feat: |Actions| Add a stable-release deployment controller for this fork with fixed source SHAs, sequential backend/frontend deployment, database and unknown-change stops, and preservation of existing JWT, variables and resource bindings
 - feat: |Webhook| Support random or specified email IDs in the test dialog, with request-body validation, mailbox ownership checks, existing UI languages and Chinese/English errors
 - feat: |Webhook| Support signed attachment URLs without S3, plain URL and Markdown link lists, with case-insensitive signatures bound to the inserted email and original download filenames; deny attachment downloads when Webhook is disabled (issue #1142)
 - feat: |Worker| Add `DISABLE_ADDRESS_UPDATED_AT` to disable individual and user-wide address activity keep-alive updates and built-in manual/scheduled inactive-address cleanup, reducing D1 writes

@@ -1,0 +1,184 @@
+name: cfmail Stable Release Update
+
+"on":
+  schedule:
+    - cron: "17 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      check_only:
+        description: "Check/build only; do not deploy"
+        type: boolean
+        default: true
+      validate_build:
+        description: "Build the current release even when already deployed"
+        type: boolean
+        default: false
+  push:
+    branches: [upgrade/auto-release]
+    paths:
+      - .github/workflows/auto_release_deploy.yaml
+      - .github/config/cfmail_release.json
+      - .github/scripts/cfmail_release.py
+      - .github/scripts/test_cfmail_release.py
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cfmail-production
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.repository == 'PoropsK/cloudflare_temp_email'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Initialize controller paths
+        run: |
+          printf 'PLAN_FILE=%s/cfmail-release-plan.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'SNAPSHOT_FILE=%s/cfmail-release-before.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'CANDIDATE_DIR=%s/candidate\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
+      - name: Checkout reviewed release controller
+        uses: actions/checkout@v6
+        with:
+          path: controller
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Test stop conditions without network or production writes
+        run: python3 controller/.github/scripts/test_cfmail_release.py
+
+      - name: Inspect stable release and live production with GET requests
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 controller/.github/scripts/cfmail_release.py plan
+
+      - name: Record deployment mode
+        env:
+          AUTO_ENABLED: ${{ vars.CFMAIL_AUTO_RELEASE_ENABLED }}
+          CHECK_ONLY: ${{ inputs.check_only }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          mode = {'event': os.environ['EVENT_NAME'], 'automatic_release_enabled': os.environ['AUTO_ENABLED'] == 'true',
+                  'check_only': os.environ['EVENT_NAME'] == 'push' or os.environ['CHECK_ONLY'] == 'true'}
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('\nDeployment mode: `' + json.dumps(mode) + '`\n')
+          PY
+
+      - name: Checkout immutable candidate from upstream
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        uses: actions/checkout@v6
+        with:
+          repository: dreamhunter2333/cloudflare_temp_email
+          ref: ${{ steps.plan.outputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+
+      - name: Write validated build configuration
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        env:
+          BACKEND_TOML: ${{ secrets.BACKEND_TOML }}
+          FRONTEND_NAME: ${{ secrets.FRONTEND_NAME }}
+          FRONTEND_BRANCH: ${{ secrets.FRONTEND_BRANCH }}
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
+        run: python3 controller/.github/scripts/cfmail_release.py prepare
+
+      - name: Install Node.js
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pinned pnpm
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.10.0
+          run_install: false
+
+      - name: Install and package Worker without deployment credentials
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        working-directory: candidate/worker
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Test and build frontend without deployment credentials
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        working-directory: candidate/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test
+          pnpm run build
+
+      - name: Verify frontend version and API target
+        if: steps.plan.outputs.decision == 'eligible' || github.event_name == 'push' || inputs.validate_build
+        run: python3 controller/.github/scripts/cfmail_release.py verify-build
+
+      - name: Recheck production and release immediately before deployment
+        id: ready
+        if: >-
+          steps.plan.outputs.decision == 'eligible' && vars.CFMAIL_AUTO_RELEASE_ENABLED == 'true' &&
+          github.ref == 'refs/heads/main' && github.event_name != 'push' &&
+          (github.event_name == 'schedule' || inputs.check_only == false)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 controller/.github/scripts/cfmail_release.py before
+
+      - name: Deploy fixed Worker source preserving Dashboard variables
+        if: steps.ready.outcome == 'success'
+        working-directory: candidate/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANDIDATE_TAG: ${{ steps.plan.outputs.candidate_tag }}
+          CANDIDATE_SHA: ${{ steps.plan.outputs.candidate_sha }}
+        run: pnpm exec wrangler deploy --minify --keep-vars --tag "$CANDIDATE_TAG" --message "$CANDIDATE_SHA"
+
+      - name: Verify Worker variables, bindings, version and D1 health
+        id: backend_verified
+        if: steps.ready.outcome == 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 controller/.github/scripts/cfmail_release.py after-worker
+
+      - name: Deploy built Pages only after backend verification
+        if: steps.backend_verified.outcome == 'success'
+        working-directory: candidate/frontend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANDIDATE_SHA: ${{ steps.plan.outputs.candidate_sha }}
+        run: pnpm exec wrangler pages deploy ./dist --project-name cfmail --branch main --commit-hash "$CANDIDATE_SHA"
+
+      - name: Verify both live sites match the built Pages bundle
+        if: steps.backend_verified.outcome == 'success'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 controller/.github/scripts/cfmail_release.py after-frontend
+
+      - name: Remove ephemeral verification state
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ('PLAN_FILE', 'SNAPSHOT_FILE'):
+              Path(os.environ[name]).unlink(missing_ok=True)
+          PY

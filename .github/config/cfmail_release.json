@@ -1,0 +1,30 @@
+{
+  "repository": "PoropsK/cloudflare_temp_email",
+  "upstream": "dreamhunter2333/cloudflare_temp_email",
+  "approved_baseline_sha": "39db6bad4377dfb3d1d67d71bd589597dff3c352",
+  "db_version": "v0.0.9",
+  "api_url": "https://mail-api.jpri.top",
+  "frontend_url": "https://mail.jpri.top",
+  "pages_project": "cfmail",
+  "pages_branch": "main",
+  "frontend_env": {
+    "VITE_API_BASE": "https://mail-api.jpri.top",
+    "VITE_DEFAULT_LANG": "zh",
+    "VITE_CF_WEB_ANALY_TOKEN": "",
+    "VITE_IS_TELEGRAM": "false"
+  },
+  "wrangler": {
+    "name": "mail-api",
+    "account_id": "7223b43ed305cbd20c72a2574caa54f4",
+    "main": "src/worker.ts",
+    "compatibility_date": "2025-09-01",
+    "compatibility_flags": ["nodejs_compat"],
+    "keep_vars": true,
+    "workers_dev": true,
+    "preview_urls": true,
+    "routes": [{"pattern": "mail-api.jpri.top", "custom_domain": true}],
+    "observability": {"enabled": false},
+    "d1_databases": [{"binding": "DB", "database_name": "cfmail", "database_id": "2b87d2bf-f7bc-4659-ab0a-befa37068ec9"}],
+    "kv_namespaces": [{"binding": "KV", "id": "ffeb228b02f54e569c429df826943310"}]
+  }
+}

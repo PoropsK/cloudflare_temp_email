@@ -10,6 +10,7 @@
 
 ### Features
 
+- feat: |Actions| 此 fork 新增正式 Release 自动部署流程，固定来源 SHA、前后端依序发布，数据库迁移及未知变更时停止，保留既有 JWT、变量与数据绑定
 - feat: |Webhook| 测试弹框支持随机邮件或指定邮件 ID，校验请求体及邮箱归属并适配现有前端语言及中英文错误提示
 - feat: |Webhook| 支持无需 S3 的多附件签名链接、纯 URL 与 Markdown 链接列表，签名兼容大小写，绑定本次入库邮件并保留下载文件名，关闭 Webhook 时禁止附件下载（issue #1142）
 - feat: |Worker| 新增 `DISABLE_ADDRESS_UPDATED_AT`，可关闭单地址及用户批量的主动保活刷新，并禁止内置手动及定时不活跃地址清理，降低 D1 写入量
