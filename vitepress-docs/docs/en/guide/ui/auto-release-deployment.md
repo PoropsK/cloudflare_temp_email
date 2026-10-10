@@ -4,7 +4,7 @@ This fork uses **cfmail Stable Release Update** for the existing `mail-api` Work
 
 ## Eligibility
 
-The weekly schedule is Monday 00:17 UTC (08:17 Taipei). Only published, non-prerelease `vX.Y.Z` releases qualify. Resolve the tag to an immutable commit SHA. The production Pages deployment's commit hash records the deployed source; verify its Worker version, D1 version and reviewed baseline. Worker must use the reviewed initial version ID or a later deployment with matching tag/SHA annotations; unreviewed Dashboard edits and split deployments stop.
+The schedule checks at minute 0 of every hour, every day (`0 * * * *`; 00:00, 01:00 through 23:00 Taipei). GitHub interprets schedules in UTC by default; Taipei's offset is a whole number of hours, so both time zones align on the hour. Only published, non-prerelease `vX.Y.Z` releases qualify. Resolve the tag to an immutable commit SHA. The production Pages deployment's commit hash records the deployed source; verify its Worker version, D1 version and reviewed baseline. Worker must use the reviewed initial version ID or a later deployment with matching tag/SHA annotations; unreviewed Dashboard edits and split deployments stop.
 
 The allowlist covers documentation, CSS/styles, specified image/font extensions, Vue style-content-only edits and version-only changes in package files and Worker constants. Candidate upstream workflows are neither executed nor merged into this fork's controller.
 
@@ -33,4 +33,4 @@ For a blocked release, inspect the reason, pin its SHA and perform the required 
 
 Disable automatic deployment in Settings → Secrets and variables → Actions → Variables by setting `CFMAIL_AUTO_RELEASE_ENABLED=false`; alternatively disable the workflow in Actions. Worker rollback does not restore D1/KV data. Backups contain mail and credentials and remain private.
 
-GitHub schedules can be delayed and can be disabled after 60 days of inactivity in public repos. Inspect the latest successful run periodically; an up-to-date deployment should still show `no_update`. Version/DB health checks do not replace old-mail and actual delivery acceptance for substantial upgrades.
+GitHub schedules can be delayed. GitHub identifies the start of each hour as a high-load period, when some queued jobs may be dropped; this schedule does not guarantee an exact start time. See the [official schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). Schedules can also be disabled after 60 days of inactivity in public repos. Inspect the latest successful run periodically; an up-to-date deployment should still show `no_update`. Version/DB health checks do not replace old-mail and actual delivery acceptance for substantial upgrades.

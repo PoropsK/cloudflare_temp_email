@@ -4,7 +4,7 @@
 
 ## 更新條件
 
-排程為每週一台北時間 08:17（00:17 UTC）。只有非 draft、非 prerelease 的 `vX.Y.Z` Release 可成為候選；先解析 tag 到固定 commit SHA。以 Pages 正式 deployment 的 commit hash 記錄已部署原始碼，並核對 Worker 版本、D1 版本及已核准基準。Worker 必須是已驗收的初始 version ID，或帶有對應 tag／SHA 註記的後續發布；未盤點的控制台修改及分流部署會停止。
+排程為每天每個整點檢查一次（每小時第 0 分鐘，台北時間 00:00、01:00……23:00；`0 * * * *`）。GitHub 預設按 UTC 解讀排程；台北與 UTC 相差整數小時，因此兩者整點對齊。只有非 draft、非 prerelease 的 `vX.Y.Z` Release 可成為候選；先解析 tag 到固定 commit SHA。以 Pages 正式 deployment 的 commit hash 記錄已部署原始碼，並核對 Worker 版本、D1 版本及已核准基準。Worker 必須是已驗收的初始 version ID，或帶有對應 tag／SHA 註記的後續發布；未盤點的控制台修改及分流部署會停止。
 
 以下變更可自動通過：文件、CSS／樣式、指定副檔名的圖片／字型、Vue 元件僅 style 內容變更，以及 package／Worker 常數的單純版本號更新。候選 `.github/workflows/` 不會被執行或覆蓋本 fork 的控制流程。
 
@@ -33,4 +33,4 @@ repository Variable `CFMAIL_AUTO_RELEASE_ENABLED=true` 才允許正式發布。�
 
 關閉自動更新：Settings → Secrets and variables → Actions → Variables，將 `CFMAIL_AUTO_RELEASE_ENABLED` 改為 `false`；也可在 Actions 停用這個 workflow。Worker rollback 不會還原 D1／KV 資料。現有正式備份含郵件與金鑰，只保存在私有目錄。
 
-GitHub 排程可能延遲；公開 repo 60 天沒有活動可能被停用。定期查看最近一次成功 run，沒有新版本也應有 `no_update` 結果。本流程檢查版本與 DB health，但不代替每次重大升級的舊信／實際收信驗收。
+GitHub 排程可能延遲，整點是官方列出的高負載時段，部分排程可能被丟棄；設定整點不保證準時啟動。[官方 schedule 說明](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)。公開 repo 60 天沒有活動可能被停用。定期查看最近一次成功 run，沒有新版本也應有 `no_update` 結果。本流程檢查版本與 DB health，但不代替每次重大升級的舊信／實際收信驗收。
